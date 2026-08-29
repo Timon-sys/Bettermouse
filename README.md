@@ -45,6 +45,13 @@ One real ceiling worth knowing: HID reports are `int8`, so 127 px per report.
 At 50 Hz that caps you around 6350 px/s no matter what you set — raise **Report
 rate** to lift it.
 
+## Install
+
+A prebuilt `dist/bettermouse.fap` is in the repo — copy it to your Flipper under
+`apps/USB/` with qFlipper and it shows up in Apps → USB. Built for Momentum
+(Target 7, API 87.1); if your firmware reports an API mismatch, build it
+yourself below.
+
 ## Build
 
 Needs [ufbt](https://github.com/flipperdevices/flipperzero-ufbt) with the
