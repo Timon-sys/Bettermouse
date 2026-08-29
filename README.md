@@ -20,7 +20,7 @@ with a real motion loop.
   possible instead of rounding to zero.
 - **Stops dead on release.** Key state is read straight from the input service
   rather than the GUI queue, so a release is never delayed behind a redraw.
-- **Ice mode** — optional momentum, where the pointer coasts to a stop. 🧊
+- **Ice mode** — optional momentum, where the pointer coasts to a stop.
 
 ## Controls
 
@@ -66,6 +66,7 @@ the Flipper menu first.
 - App icon by [SebStrt](https://github.com/SebStrt) 🎨
 - Keypad artwork and the HID transport approach come from the USB Remote app in
   [Momentum Firmware](https://github.com/Next-Flip/Momentum-Firmware).
+- This is my first actual Vibe code, and yes i do feel bad for it 😭
 
 ## License
 
