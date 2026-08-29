@@ -21,6 +21,7 @@
 #define BM_EXIT_HOLD  800u /* ms holding Back alone before we drop to the menu */
 #define BM_REPORT_MAX 127 /* HID reports are int8 */
 #define BM_ICE_STOP   8.0f /* px/s below which a glide is over */
+#define BM_BAR_MIN_MS 250u /* min gap between speed bar repaints */
 
 #define BM_FLAG_STOP (1u << 0)
 
@@ -317,6 +318,19 @@ static int32_t bm_mouse_thread(void* context) {
        dispatches input, so repainting every tick is what made releases land
        late in the first place. */
     uint8_t last_drawn_pct = 255;
+    uint32_t last_bar_tick = 0;
+
+    /* Scheduling deadline and the timestamp we measure dt against. Waiting a
+       relative tick_ms each pass would let the loop free-run: the period would
+       be tick_ms plus however long the work took, and FreeRTOS relative delays
+       quantise to +/-1 tick depending on where in the 1 ms tick we started. The
+       phase against the system tick then drifts slowly, so the real period
+       wanders between about 20 and 22 ms. Pair that with integrating a fixed
+       nominal dt and the delivered speed is const_px / varying_seconds, which
+       reads as a slow sine on top of a steady glide. Absolute deadlines plus a
+       measured dt kill both halves of that. */
+    uint32_t next_deadline = furi_get_tick();
+    uint32_t last_tick = next_deadline;
 
     while(true) {
         const BmSettings* settings = bm_mouse->settings;
@@ -325,10 +339,33 @@ static int32_t bm_mouse_thread(void* context) {
         if(tick_hz < 10) tick_hz = 10;
         uint32_t tick_ms = 1000u / tick_hz;
         if(tick_ms < 1) tick_ms = 1;
-        float dt = (float)tick_ms / 1000.0f;
 
-        uint32_t flags = furi_thread_flags_wait(BM_FLAG_STOP, FuriFlagWaitAny, tick_ms);
+        /* Absolute cadence: the next wake is a fixed step from the last target,
+           not from now, so work time does not push the period out. */
+        next_deadline += tick_ms;
+        uint32_t now = furi_get_tick();
+        int32_t remaining = (int32_t)(next_deadline - now);
+
+        /* If we fell far behind, or the rate setting just changed, resync
+           rather than trying to catch up with a burst of zero-length waits. */
+        if(remaining < 0 || remaining > (int32_t)(tick_ms * 4)) {
+            next_deadline = now + tick_ms;
+            remaining = (int32_t)tick_ms;
+        }
+
+        uint32_t flags =
+            furi_thread_flags_wait(BM_FLAG_STOP, FuriFlagWaitAny, (uint32_t)remaining);
         if((flags & BM_FLAG_STOP) != 0) break;
+
+        /* Integrate against the time that actually passed. Whole milliseconds
+           quantise each step, but the remainder is never discarded, so distance
+           over any window stays exact and the modulation has nowhere to live. */
+        now = furi_get_tick();
+        uint32_t elapsed_ms = now - last_tick;
+        last_tick = now;
+        if(elapsed_ms == 0) elapsed_ms = 1;
+        if(elapsed_ms > 200) elapsed_ms = 200; /* do not teleport after a stall */
+        float dt = (float)elapsed_ms / 1000.0f;
 
         bool connected = furi_hal_hid_is_connected();
         bm_mouse_service_requests(bm_mouse, connected);
@@ -353,7 +390,7 @@ static int32_t bm_mouse_thread(void* context) {
            than off InputTypeLong, so we can warn before it fires. */
         bool quit = false;
         if(in->back_held && !in->back_consumed) {
-            bm_mouse->back_hold_ms += tick_ms;
+            bm_mouse->back_hold_ms += elapsed_ms;
             if(bm_mouse->back_hold_ms >= BM_EXIT_HOLD && !bm_mouse->exit_requested) {
                 bm_mouse->exit_requested = true;
                 in->back_consumed = true; /* so releasing Back is not a click */
@@ -372,7 +409,7 @@ static int32_t bm_mouse_thread(void* context) {
         float min_speed = (float)settings->min_speed;
         /* Ramp: eases in from min_speed to max_speed over accel_ms. */
         if(moving) {
-            bm_mouse->hold_ms += tick_ms;
+            bm_mouse->hold_ms += elapsed_ms;
         } else {
             bm_mouse->hold_ms = 0;
         }
@@ -457,15 +494,23 @@ static int32_t bm_mouse_thread(void* context) {
             bm_mouse->acc_scroll = 0.0f;
         }
 
-        /* Mirror state to the screen, quantised to 10% so the ramp costs at
-           most ten repaints instead of one per tick. */
+        /* Mirror state to the screen, quantised to 20%. The bar is the only
+           thing that changes while you hold a direction, and a repaint of this
+           screen is not cheap, so it also gets a minimum interval. Button and
+           direction changes still repaint immediately: those are things you
+           just did, and they need to feel instant. */
         float shown = sqrtf(bm_mouse->vx * bm_mouse->vx + bm_mouse->vy * bm_mouse->vy);
         uint8_t speed_pct = 0;
         if(max_speed > 0.0f) {
             float pct = (shown * 100.0f) / max_speed;
             if(pct > 100.0f) pct = 100.0f;
-            speed_pct = (uint8_t)(((uint8_t)pct / 10u) * 10u);
+            speed_pct = (uint8_t)(((uint8_t)pct / 20u) * 20u);
         }
+
+        bool bar_due = (speed_pct != last_drawn_pct) &&
+                       ((uint32_t)(now - last_bar_tick) >= BM_BAR_MIN_MS || speed_pct == 0 ||
+                        speed_pct == 100);
+        if(bar_due) last_bar_tick = now;
 
         bool redraw = false;
         with_view_model(
@@ -488,7 +533,7 @@ static int32_t bm_mouse_thread(void* context) {
                    model->btn_right != back_down || model->scroll_mode != bm_mouse->scroll_mode ||
                    model->connected != connected || model->gliding != gliding ||
                    model->exit_warn != exit_warn || model->ice != (bool)settings->ice ||
-                   speed_pct != last_drawn_pct) {
+                   bar_due) {
                     model->up = up;
                     model->down = down;
                     model->left = left;
@@ -553,6 +598,9 @@ static void bm_mouse_enter_callback(void* context) {
         furi_pubsub_subscribe(bm_mouse->input_events, bm_mouse_input_event, bm_mouse);
 
     bm_mouse->thread = furi_thread_alloc_ex("BmMouseMotion", 1024, bm_mouse_thread, bm_mouse);
+    /* Above the GUI service, so a tick lands on time even mid-redraw. Safe to
+       sit here because the loop sleeps between ticks and never spins. */
+    furi_thread_set_priority(bm_mouse->thread, FuriThreadPriorityHigh);
     furi_thread_start(bm_mouse->thread);
 }
 
@@ -588,7 +636,14 @@ BmMouse* bm_mouse_alloc(const BmSettings* settings, NotificationApp* notificatio
 
     bm_mouse->view = view_alloc();
     view_set_context(bm_mouse->view, bm_mouse);
-    view_allocate_model(bm_mouse->view, ViewModelTypeLocking, sizeof(BmMouseModel));
+    /* Lock free, not Locking. view_draw() holds the model mutex for the whole
+       draw callback, and every canvas_draw_icon() decompresses its icon, so a
+       redraw of this screen keeps that mutex for milliseconds. With a locking
+       model the motion thread blocked on it once per tick, which stalled the
+       pointer exactly while the speed bar was animating during the ramp.
+       Nothing here is bigger than a byte and only the motion thread writes it,
+       so the worst a torn read can do is draw one field a frame late. */
+    view_allocate_model(bm_mouse->view, ViewModelTypeLockFree, sizeof(BmMouseModel));
     view_set_draw_callback(bm_mouse->view, bm_mouse_draw_callback);
     view_set_input_callback(bm_mouse->view, bm_mouse_input_callback);
     view_set_enter_callback(bm_mouse->view, bm_mouse_enter_callback);
