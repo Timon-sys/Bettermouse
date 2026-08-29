@@ -1,3 +1,2 @@
-dist/
 .vscode/
-*.fap
+dist/debug/
