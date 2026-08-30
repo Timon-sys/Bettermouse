@@ -1,7 +1,7 @@
 ## v1.2
 
 - Mouse screen title no longer overlaps the keypad graphic
-- Speed values show as `2000/s` so four and five digit speeds are not clipped
+- Speed values show as 2000/s so four and five digit speeds are not clipped
 - Ice glide adjustable in 10 ms steps
 - App icon stored as a 1-bit PNG
 
