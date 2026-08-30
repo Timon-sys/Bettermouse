@@ -10,7 +10,7 @@ const BmRange bm_range_min_speed = {.min = 0, .step = 10, .count = 251}; /* 0..2
 const BmRange bm_range_accel = {.min = 0, .step = 20, .count = 251}; /* 0..5000 ms */
 const BmRange bm_range_scroll = {.min = 5, .step = 1, .count = 251}; /* 5..255 notches/s */
 const BmRange bm_range_tick = {.min = 10, .step = 10, .count = 100}; /* 10..1000 Hz */
-const BmRange bm_range_ice_glide = {.min = 20, .step = 20, .count = 200}; /* 20..4000 ms */
+const BmRange bm_range_ice_glide = {.min = 10, .step = 10, .count = 200}; /* 10..2000 ms */
 
 const char* const bm_toggle_names[] = {"OFF", "ON"};
 

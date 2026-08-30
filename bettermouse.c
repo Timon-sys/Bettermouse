@@ -69,8 +69,8 @@ typedef struct {
      .wide = (is_wide)}
 
 static const BmTunable bm_tunables[] = {
-    BM_TUNABLE("Max speed", &bm_range_max_speed, "px/s", max_speed, true),
-    BM_TUNABLE("Pre-ramp", &bm_range_min_speed, "px/s", min_speed, true),
+    BM_TUNABLE("Max speed", &bm_range_max_speed, "/s", max_speed, true),
+    BM_TUNABLE("Pre-ramp", &bm_range_min_speed, "/s", min_speed, true),
     BM_TUNABLE("Accel ramp", &bm_range_accel, "ms", accel_ms, true),
     BM_TUNABLE("Scroll speed", &bm_range_scroll, "/s", scroll_speed, false),
     BM_TUNABLE("Report rate", &bm_range_tick, "Hz", tick_hz, true),

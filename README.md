@@ -47,21 +47,28 @@ rate** to lift it.
 
 ## Install
 
-A prebuilt `dist/bettermouse.fap` is in the repo — copy it to your Flipper under
-`apps/USB/` with qFlipper and it shows up in Apps → USB. Built for Momentum
-(Target 7, API 87.1); if your firmware reports an API mismatch, build it
-yourself below.
+Grab `bettermouse.fap` from the [latest release](../../releases/latest) and copy
+it to your Flipper under `apps/USB/` with qFlipper — it shows up in Apps → USB.
+A prebuilt copy also sits in `dist/`.
+
+Builds and runs on official firmware and on Momentum (Target 7, API 87.1). No
+custom firmware needed.
 
 ## Build
 
-Needs [ufbt](https://github.com/flipperdevices/flipperzero-ufbt) with the
-Momentum SDK:
+Needs [ufbt](https://github.com/flipperdevices/flipperzero-ufbt):
 
 ```
 pip install ufbt
+ufbt update                       # official firmware SDK
+ufbt                              # build -> dist/bettermouse.fap
+ufbt launch                       # build, upload and run
+```
+
+For Momentum instead, point ufbt at its SDK index:
+
+```
 ufbt update --index-url=https://up.momentum-fw.dev/firmware/directory.json
-ufbt              # build -> dist/bettermouse.fap
-ufbt launch       # build, upload and run
 ```
 
 Note: while the app is running it holds the USB port as a HID device, so the

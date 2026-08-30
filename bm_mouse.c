@@ -101,7 +101,7 @@ static void bm_mouse_draw_callback(Canvas* canvas, void* context) {
     BmMouseModel* model = context;
 
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 0, 10, "Better Mouse");
+    canvas_draw_str(canvas, 0, 10, "BMouse");
 
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str(canvas, 0, 22, model->connected ? "USB ready" : "No USB host");
